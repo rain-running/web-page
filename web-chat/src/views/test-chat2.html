@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>test-chat</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://js.cybozu.com/markedjs/v0.3.5/marked.min.js"></script>
+  　
+  <script src="http://libs.baidu.com/jquery/2.1.4/jquery.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+    }
+
+    .container {
+      max-width: 950px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #ffffff;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .chat-log {
+      height: 800px;
+      overflow-y: scroll;
+      border: 1px solid #cccccc;
+      padding: 10px;
+    }
+
+    .user-message {
+      background-color: #e1f5fe;
+      border-radius: 5px;
+      padding: 8px;
+      margin-bottom: 10px;
+    }
+
+    .bot-message {
+      background-color: #f3e5f5;
+      border-radius: 5px;
+      padding: 8px;
+      margin-bottom: 10px;
+    }
+
+    .input-container {
+      display: flex;
+    }
+
+    .input-field {
+      flex-grow: 1;
+      border: 1px solid #cccccc;
+      border-radius: 5px;
+      padding: 8px;
+      margin-right: 10px;
+    }
+
+    .send-button {
+      background-color: #4caf50;
+      color: #ffffff;
+      border: none;
+      border-radius: 5px;
+      padding: 8px 16px;
+      cursor: pointer;
+    }
+
+    @media (max-width: 600px) {
+
+      /* 在宽度小于或等于 600px 的设备上应用以下样式 */
+      /* 调整聊天容器的宽度和高度 */
+      #chat-container {
+        width: 100%;
+        height: 300px;
+      }
+
+      /* 调整用户输入框的宽度 */
+      #user-input {
+        width: 80%;
+      }
+    }
+
+    img {
+      width: 50%;
+      height: auto;
+      border: 2px solid #ccc;
+      margin: 10px;
+      cursor: pointer;
+
+    }
+
+    /* .zoomable {
+      cursor: pointer;
+    }
+
+    .zoomable:hover {
+      transform: scale(1.8);
+      position: absolute;
+      left: 25%;
+      top: 35%;
+      transition: transform 1s ease-in-out;
+    } */
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Welcome to Chat Page</h1>
+    <div>
+      <label for="api-key">Key:</label>
+      <input type="text" id="api-key" placeholder="" />
+      <button id="save-button" onclick="saveApiKey()">save</button>
+    </div>
+    <div class="chat-log" id="chat-log"></div>
+    <div class="input-container">
+      <input type="text" class="input-field" id="user-input" placeholder="Press Enter key to end..." />
+      <button class="send-button" onclick="clearMessage()">Clear</button>
+    </div>
+  </div>
+
+  <script>
+
+    function displayMessage(sender, message, className) {
+      var chatLog = document.getElementById("chat-log");
+      var messageElement = document.createElement("div");
+      var text = sender + message;
+      messageElement.innerHTML = marked(text);
+      messageElement.classList.add(className);
+      chatLog.appendChild(messageElement);
+      chatLog.scrollTop = chatLog.scrollHeight; // Scroll to the bottom of the chat log
+    }
+
+    function clearMessage() {
+      const element = document.getElementById("chat-log");
+      while (element.firstChild) {
+        element.removeChild(element.firstChild);
+      }
+
+    }
+    let uid;
+    window.onload = function () {
+      var userInput = document.getElementById("user-input");
+
+      uid = window.localStorage.getItem("uid");
+      let sse;
+      if (uid == null || uid == '' || uid == 'null') {
+        uid = uuid();
+      }
+
+      let uuid_str;
+      // 设置本地存储
+      window.localStorage.setItem("uid", uid);
+
+
+
+      // 回车事件
+      userInput.onkeydown = function () {
+        try {
+
+          var userMessage = userInput.value;
+          if (window.event.keyCode === 13) {
+
+
+
+            if (!userInput.value) {
+              return;
+            }
+
+
+            // 获取保存的 API Key
+            const apiKey = getApiKey();
+            // 如果没有保存 API Key，则提示用户输入
+            if (!apiKey) {
+              alert('请先输入 API Key');
+              return;
+            }
+
+            if (uid == null || uid == '' || uid == 'null') {
+              uid = uuid();
+            }
+            //创建sse
+            const eventSource = new EventSource('/api/createSse?uuId=' + uid);
+            let text = '<h3>ChatBot: </h3>';
+
+            uuid_str = uuid();
+
+
+
+            eventSource.onopen = (event) => {
+              console.log("开始输出后端返回值");
+              sse = event.target;
+              displayMessage("<h3>User:</h3>", userMessage, "user-message");
+
+              var mod = {
+                "content": userMessage,
+                "uuId": uid,
+                "apiKey": apiKey
+              }
+              // $.ajax({
+              //   type: 'post',
+              //   url: '/api/chat',
+              //   data: JSON.stringify(mod),
+              //   contentType: "application/json;charset=UTF-8",
+              //   dataType: "json",
+              //   headers: {
+              //     "uid": uid,
+              //   },
+              //   beforeSend: function (request) {
+
+              //   },
+              //   success: function (result) {
+              //     var chatLog = document.getElementById("chat-log");
+              //     var messageElement = document.createElement("dev");
+              //     messageElement.innerHTML = '<tr><td><article id="' + uuid_str + '" class="markdown-body bot-message"></article></td></tr>';
+              //     console.log(result);
+              //     chatLog.appendChild(messageElement);
+              //     chatLog.scrollTop = chatLog.scrollHeight;
+              //     var obj = result;
+              //     if (obj.apiType === 'IMAGE') {
+              //       var imageArr = obj.image;
+              //       let content = document.getElementById(uuid_str)
+              //       content.innerHTML = text;
+              //       var i = 0;
+              //       imageArr.forEach(function (item) {
+              //         var img = document.createElement('img');
+              //         var btn=document.createElement('button');
+              //         btn.classList.add("send-button");
+              //         i++;
+              //         btn.innerHTML = "V"+i;
+              //         img.src = item.url;
+              //        // img.classList.add("zoomable");
+              //         var isZoomed = true;
+              //         img.addEventListener('click', function () {
+              //           console.log("img click ");
+              //           if (isZoomed) {
+              //             // 还原图片尺寸
+              //             img.style.width = "100%";
+              //             img.style.height = "auto";
+              //             img.style.border = "1px solid #ccc";
+              //             isZoomed = false;
+              //           }else{
+              //             img.style.width = "50%";
+              //             img.style.height = "auto";
+              //             img.style.border = "1px solid #ccc";
+              //             isZoomed = true;
+              //           }
+              //         });
+              //         btn.addEventListener('click',);
+              //         content.appendChild(img);
+              //         content.appendChild(btn);
+
+              //       });
+              //       event.target.close();
+              //       userInput.disabled = false;
+              //       return;
+              //     }
+              //   },
+              //   complete: function () {
+              //   },
+              //   error: function () {
+              //     console.info("发送问题失败！");
+              //   }
+              // });
+              ajaxPostApi(mod, uid, uuid_str,event,userInput);
+              userInput.value = '';
+              userInput.disabled = true;
+
+            };
+            eventSource.onmessage = (event) => {
+              //console.log("res:" + event.data);
+              if (event.data === "[DONE]") {
+                event.target.close();
+                userInput.disabled = false;
+                return;
+              }
+              var obj = JSON.parse(event.data);
+              if (obj.apiType === 'IMAGE') {
+                var imageArr = obj.image;
+                let content = document.getElementById(uuId)
+                imageArr.forEach(function (item) {
+                  var img = document.createElement('img');
+                  img.src = item.url;
+                  listenImageClick(img);
+                });
+                content.appendChild(img);
+                event.target.close();
+                userInput.disabled = false;
+                return;
+              } else {
+                var message = obj.message.content;
+                if (typeof message != 'undefined') {
+                  text += message;
+                  setText(text, uuid_str);
+                }
+              }
+
+
+            };
+            eventSource.onerror = (event) => {
+              console.log("onerror", event);
+
+              // alert("服务异常请重试并联系开发者！")
+              if (event.readyState === EventSource.CLOSED) {
+                console.log('connection is closed');
+                //event.target.close();
+              } else {
+                console.log("Error occured", event);
+              }
+              event.target.close();
+            };
+
+          }
+        } catch (error) {
+          // 捕获异常并处理它
+          console.error('There was a problem:', error);
+          event.target.close();
+          userInput.disabled = false;
+          return;
+        }
+      };
+
+      userInput.onclick = function () {
+        if (sse) {
+          sse.close();
+        }
+      };
+
+    };
+
+
+    function ajaxPostApi(mod, uid, uuid_str,event,userInput) {
+      $.ajax({
+        type: 'post',
+        url: '/api/chat',
+        data: JSON.stringify(mod),
+        contentType: "application/json;charset=UTF-8",
+        dataType: "json",
+        headers: {
+          "uid": uid,
+        },
+        beforeSend: function (request) {
+
+        },
+        success: function (result) {
+          var chatLog = document.getElementById("chat-log");
+          var messageElement = document.createElement("dev");
+          messageElement.innerHTML = '<tr><td><article id="' + uuid_str + '" class="markdown-body bot-message"></article></td></tr>';
+          console.log(result);
+          chatLog.appendChild(messageElement);
+          chatLog.scrollTop = chatLog.scrollHeight;
+          var obj = result;
+          if (obj.apiType === 'IMAGE') {
+            var imageArr = obj.image;
+            let content = document.getElementById(uuid_str)
+            content.innerHTML = '<h3>ChatBot: </h3>';
+            var i = 0;
+            imageArr.forEach(function (item) {
+              var img = document.createElement('img');
+              var btn = document.createElement('button');
+              btn.classList.add("send-button");
+              i++;
+              btn.innerHTML = "V" + i;
+              img.src = item.url;
+              // img.classList.add("zoomable");
+              var isZoomed = true;
+              img.addEventListener('click', function () {
+                console.log("img click ");
+                if (isZoomed) {
+                  // 还原图片尺寸
+                  img.style.width = "100%";
+                  img.style.height = "auto";
+                  img.style.border = "1px solid #ccc";
+                  isZoomed = false;
+                } else {
+                  img.style.width = "50%";
+                  img.style.height = "auto";
+                  img.style.border = "1px solid #ccc";
+                  isZoomed = true;
+                }
+              });
+              btn.addEventListener('click', function () {
+                console.log("btn click ");
+                var ur = item.url;
+                mod.url = ur;
+                uuid_str=uuid();
+                ajaxPostApi(mod, uid, uuid_str);
+              });
+              content.appendChild(img);
+              content.appendChild(btn);
+
+            });
+            var userInput = document.getElementById("user-input");
+            userInput.disabled = false;
+           // event.target.close();
+            return;
+          }
+        },
+        complete: function () {
+        },
+        error: function () {
+          console.info("发送问题失败！");
+        }
+      });
+    }
+
+    function uuid() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    }
+
+    function setText(text, uuId) {
+      let content = document.getElementById(uuId)
+      content.innerHTML = marked(text);
+    }
+
+
+
+    window.addEventListener('load', function () {
+      console.log("load flush");
+      localStorage.removeItem('uid');
+      uid = null;
+    });
+
+    // function closeSee(uid) {
+    //   fetch('/api/closeSse?uuId=' + uid)
+    //     .then((response) => {
+    //       if (!response.ok) {
+    //         throw new Error('Network response was not ok');
+    //       }
+    //       uid = null;
+    //       localStorage.removeItem('uid');
+    //       return response;
+    //     })
+    //     .then((data) => {
+    //       console.log(data);
+    //     })
+    //     .catch((error) => {
+    //       console.error('There was a problem with the fetch operation:', error);
+    //     });
+    // }
+    // 保存 API Key 到本地存储
+    function saveApiKey() {
+      const apiKeyInput = document.getElementById('api-key');
+      const apiKey = apiKeyInput.value;
+      localStorage.setItem('api_key', apiKey);
+      apiKeyInput.value = '';
+    }
+
+    // 获取保存在本地存储中的 API Key
+    function getApiKey() {
+      return localStorage.getItem('api_key');
+    }
+
+    // 检查是否存在 API Key
+    function hasApiKey() {
+      return getApiKey() !== null;
+    }
+
+
+
+
+  </script>
+</body>
+
+</html>
